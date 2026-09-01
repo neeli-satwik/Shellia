@@ -1,45 +1,72 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// TODO (tokenize): implement per the lesson description.
-
-bool tokenize(string& line, vector<string>& tokens) {
+bool tokenize(int& start, const string& line, vector<string>& tokens, bool& hitPipe) {
     bool isSingle = false, isDouble = false, tokenActive = false;
     string curr;
-    int n = line.length();
+    int n = (int)line.length();
+    hitPipe = false;
 
-    for(int i=0;i<n;i++) {
+    int i;
+    for (i = start; i < n; i++) {
         char c = line[i];
 
-        if(!isSingle && !isDouble && tokenActive && isspace((unsigned char)c)) { //a complete valid token has been generated.
-            tokens.push_back(curr);
-            curr.clear();
-            tokenActive = false;
+        if (c == '|' && !isSingle && !isDouble) { hitPipe = true; break; }
+
+        if (!isSingle && !isDouble && isspace((unsigned char)c)) {
+            if (tokenActive) {
+                tokens.push_back(curr);
+                curr.clear();
+                tokenActive = false;
+            }
             continue;
         }
 
-        if(!isSingle && !isDouble && isspace((unsigned char)c)) continue; //all single spaces that come between tokens are supposed to be treated as a single whitespace.
-        
         tokenActive = true;
 
         if (c == '\'' && !isDouble) { isSingle = !isSingle; continue; }
         if (c == '"'  && !isSingle) { isDouble = !isDouble; continue; }
 
-        if(isDouble) {
-            if(c=='\\' && i+1>=n) return false;
-            if(c=='\\') {curr += line[++i]; continue;} 
+        if (isDouble && c == '\\') {
+            if (i + 1 >= n) return false;
+            curr += line[++i];
+            continue;
         }
 
-        if (!isSingle && c == '\\') {
-            if (i + 1 < line.size()) curr += line[++i]; // trailing backslash with no quote open: keep it simple, drop it
+        if (!isSingle && !isDouble && c == '\\') {
+            if (i + 1 < n) curr += line[++i];
             continue;
         }
 
         curr += c;
     }
 
-    if(isSingle || isDouble) return false;
-    if(tokenActive) tokens.push_back(curr);
+    if (isSingle || isDouble) return false;
+    if (tokenActive) tokens.push_back(curr);
+
+    start = hitPipe ? i + 1 : i;
+    return true;
+}
+
+bool retrieveCommands(const string& line, vector<vector<string>>& commands) {
+    int index = 0, n = (int)line.size();
+    bool afterPipe = false;
+
+    while (index < n) {
+        vector<string> tokens;
+        bool hitPipe = false;
+        if (!tokenize(index, line, tokens, hitPipe)) return false;
+
+        if (tokens.empty()) {
+            if (!hitPipe && !afterPipe && commands.empty()) break; // blank line, no commands at all
+            return false; // empty command: leading "|", "a||b", etc.
+        }
+
+        commands.push_back(tokens);
+        afterPipe = hitPipe;
+    }
+
+    if (afterPipe) return false; // trailing "|" with nothing after it
     return true;
 }
 
@@ -47,15 +74,18 @@ int main() {
     string line;
     while (getline(cin, line)) {
         if (line.empty()) continue;
-        vector<string> tokens;
-        if(!tokenize(line, tokens)) {
-            cout<<"ERR unterminated quote\n";
+        vector<vector<string>> commands;
+        if (!retrieveCommands(line, commands)) {
+            cout << "ERR syntax error: empty command in pipeline\n";
             continue;
         }
-        for (size_t i = 0; i < tokens.size(); i++) {
-            if (i) cout << ' ';
-            cout << '[' << tokens[i] << ']';
+        for (size_t i = 0; i < commands.size(); i++) {
+            for (size_t j = 0; j < commands[i].size(); j++) {
+                if (j) cout << ' ';
+                cout << commands[i][j];
+            }
+            if(i<commands.size()-1) cout << " | ";
         }
         cout << "\n";
-    }    
+    }
 }
